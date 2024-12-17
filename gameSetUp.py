@@ -5,7 +5,7 @@ import multiprocessing
 
 from boardStates import boardStateTest, boardStateA, boardStateB, boardStateC, boardStateD
 
-from aditionalFunctions import check_win, display_board
+from additionalFunctions import check_win, display_board
 from gameStateEvaluation import improvedHeurtistic, naiveHeurtistic
 
 # defining the game play flow
