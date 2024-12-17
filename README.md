@@ -1,0 +1,1 @@
+A board game between an autonomous agent. Implements the minimax and alpha-beta pruning algorithms from the book by Russell and Norvig 'Artificial Intelligence: A Modern Approach'
