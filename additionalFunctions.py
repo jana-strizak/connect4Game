@@ -23,3 +23,16 @@ def check_win(board):
                 return winner # loop can end when win is found 
     # return winner pawn, or 0 for no wins yet
     return winner
+
+def findMaxSteps(ngb):
+        # determine max step that can be taken based on num of ngb
+        if ngb == 0: 
+            maxStep = 3
+        elif ngb == 1:
+            maxStep = 2
+        elif ngb == 2:
+            maxStep = 1
+        else:
+            maxStep = 0
+        # max num of steps the piece can travel
+        return maxStep

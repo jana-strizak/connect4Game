@@ -112,16 +112,64 @@ class Connect4Game:
 
         # make move -------------------------------------------------------
         # calc new board
-        boardNew = self.action(self.board, x, y, direction, steps, False)
-        # update game board
-        if boardNew:
-            self.board = copy.deepcopy(boardNew)
+        self.action(x, y, direction, steps, False)
         #------------------------------------------------------------------
 
         # return print statment showing what move took place
         msg = str(x)+str(y) + direction + str(steps)
 
-        return boardNew, msg
+        return msg
+    
+    def action(self, x, y, direction, steps, maxPlayer, show=1):
+        if show:
+            print(str(x+1)+str(y+1)+direction+str(steps))
+
+        # check correct pawn is chosen 
+        if maxPlayer and (self.board[x][y] == self.agentCharacter or self.board[x][y] == " "):
+            print('max player must choose '+ self.playerCharacter +' to move')
+            return 0
+        elif not(maxPlayer) and (self.board[x][y] == self.playerCharacter or self.board[x][y] == " "):
+            print('min player must choose' + self.agentCharacter + 'to move')
+            return 0
+
+        # count neighbours or pawn at (x,y) to determine max steps 
+        ngb = self.countNBH(self.board, x, y, maxPlayer)
+        maxSteps = self.findMaxSteps(ngb)
+
+        # checking steps don't exeed limit
+        if steps > maxSteps:
+            print("Too many steps! That pawn can only move %d steps"%maxSteps)
+            return 0
+
+        # step through all points in between to make sure nothing is in the way
+        for step in range(1,steps+1):
+            if direction == "W":
+                xNew, yNew = x - step, y
+            elif direction == "E":
+                xNew, yNew = x + step, y
+            elif direction == "N":
+                xNew, yNew = x, y - step
+            elif direction == "S":
+                xNew, yNew = x, y + step
+            else:
+                print("Unavailible move direction")
+                return 0
+
+            # check new value is on board
+            if (xNew > len(self.board)-1) or (xNew < 0) or (yNew > len(self.board[0])-1) or (yNew < 0):
+                if show:
+                    print("You moved too far off the board!")
+                return 0 
+            # check new value isn't overlapping another pawn 
+            if (self.board[xNew][yNew] == "X") or (self.board[xNew][yNew] == "O"):
+                if show:
+                    print("There is another pawn in the way!")
+                return 0 
+        
+        self.board[xNew][yNew] = self.board[x][y]
+        self.board[x][y] = ' '
+
+        return 
     
     def play(self, stopItter = math.inf, show = 1):
         """
@@ -151,7 +199,7 @@ class Connect4Game:
                 print("Now " + currentPawn + " agent will move...")
 
             # make a move
-            newBoard, msg = self.takeTurn(maxPlayer)
+            msg = self.takeTurn(maxPlayer)
 
             # check who won
             result = check_win(self.board)# records who wins, 0 for noone, 1 or player2, 2 for player1
