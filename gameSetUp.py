@@ -137,9 +137,13 @@ class Connect4Game:
 
         return childern
     
-    def minimax(self, board, depth, maxPlayer, count = 0):
+    def minimax(self, board, depth, maxPlayer, maxDepth = -1, count = 0, prune = False, alpha = -math.inf, beta = math.inf):
+        '''
+        The minimax algorithm to determine move with best board state
+        alpha-beta prunning is possible with the prune function
+        '''
         # check if this is a winning board
-        result = self.check_win(board)
+        result = check_win(board)
         win = (result == "X") or (result == "O")
         # return heuristic if it's a win or an end depth
         if depth == 0 or win:
@@ -147,64 +151,9 @@ class Connect4Game:
             count += 1
             return v, None, count
         
-        if maxPlayer:
-            maxEval = - math.inf
-            #minDepth = -1
-            minSteps = -1
-            childern =  self.findChildern(board, maxPlayer)
-            for child in childern:
-                childBoard = child[0]
-                eval, _, ccount = self.minimax(childBoard, depth-1, False) # since this turn was maxPlayer, next is not
-                count += ccount + 1
-                if (eval > maxEval) or ((eval == maxEval) and (child[4] > minSteps)):
-                    #minDepth = depth-1
-                    maxEval = eval
-                    minSteps = child[4]
-                    bestMove = (child[1], child[2], child[3], child[4]) # x, y, dir, steps
-            return maxEval, bestMove, count
-        else:
-            minEval = math.inf
-            #minDepth = -1
-            minSteps = -1
-            childern =  self.findChildern(board, maxPlayer)
-            for child in childern:
-                childBoard = child[0]
-                eval, _, ccount = self.minimax(childBoard, depth-1, True) # since this turn was maxPlayer, next is not
-                count += ccount + 1
-                # update best move with value is better (smaller) or when the value is the same but step = 0 (get there faster)
-                #if (eval < minEval) or ((eval == minEval) and (child[4] > minSteps)) :
-                if (eval < minEval) or ((abs(eval - minEval) < 0.1) and (count < minSteps)):
-                    minEval = eval
-                    minSteps = count
-                    bestMove = (child[1], child[2], child[3], child[4])
-            return minEval, bestMove, count
-
-    def alphabetaPruning(self, board, depth, alpha, beta, maxPlayer, maxDepth = -1, count = 0):
-        """
-        The core alpha-beta prunning algorithm
-        """
-        # check if this is a winning board
-        result = check_win(board)
-        win = (result == "X") or (result == "O")
-
-        # return heuristic if it's a win or an end depth
-        if depth == 0 or win:
-            eval = self.heuristicFunc(board, maxPlayer)
-            count +=1
-            return eval, None, count
-        
-        minSteps = -1
-        # find all steps that can be taken after this one
-        childern =  self.findChildern(board, maxPlayer)
-        
-        # There are no moves avaible 
-        if childern == []:
-            eval = (-1)**maxPlayer * 15 # return bad score for this board state
-            return eval, None, count
-            
         # determine which moves to do first by ordering the board states
         ordered = self.player2Ordered if maxPlayer else self.player1Ordered
-        if ordered and (depth > maxDepth):
+        if ordered and depth > maxDepth: # will only be updated at the first depth
             maxDepth = depth
             allChildBoards = [c[0] for c in childern]
             boardEvals = [abs(self.heuristicFunc(b, maxPlayer)) for b in allChildBoards]
@@ -213,33 +162,34 @@ class Connect4Game:
             childern_ordered = [childern[i] for i in index]
             childern = childern_ordered
 
-        # keeping track of best score so far
         bestEval = - math.inf if maxPlayer else math.inf
+        minSteps = -1
         
-        # evaluating all childern of the board state
+        # get all possible board moves from this state
+        childern =  self.findChildern(board, maxPlayer)
+
         for child in childern:
-                childBoard = child[0]
-                eval, _, ccount = self.alphabetaPruning(childBoard, depth-1, alpha, beta, False, maxDepth = maxDepth, count = 0) # since this turn was maxPlayer, next is not
-                count += 1 + ccount
-                if maxPlayer:
-                    update_eval = eval > bestEval
-                else:
-                    update_eval = eval < bestEval
+            childBoard = child[0]
+            eval, _, ccount, minSteps = self.minimax(childBoard, depth-1, not(maxPlayer), alpha=alpha, beta=beta) # since this turn was maxPlayer, next is not
+            count += ccount + 1
 
-                if update_eval:
-                    #minDepth = depth-1
-                    bestEval = eval
-                    bestMove = (child[1], child[2], child[3], child[4]) # x,y,dir, steps
-                
-                if maxPlayer:
-                    alpha = max(alpha, eval)
-                else:
-                     beta = min(beta, eval)
+            eval_update = eval > bestEval if maxPlayer else eval < bestEval
+            if eval_update or ((eval == bestEval) and (child[4] > minSteps)):
+                bestEval = eval
+                minSteps = child[4]
+                bestMove = (child[1], child[2], child[3], child[4]) # x, y, dir, steps
 
-                if beta <= alpha:
-                    break
-        return bestEval, bestMove, count
-    
+            if prune: # don't bother checking all nodes if better results exist
+                if maxPlayer:
+                        alpha = max(alpha, eval)
+                    else:
+                        beta = min(beta, eval)
+
+                    if beta <= alpha:
+                        break
+            
+        return bestEval, bestMove, count, minSteps
+
     """
     ______________________________________________________________________________________________________________________
     """
