@@ -28,8 +28,8 @@ def countNBH(game, board, x, y, maxPlayer, same = False):
     for boarderX in range(x-1,x+2):
         for boarderY in range(y-1,y+2):
             # check it is within the board
-            xInBoard = (boarderX >= 0) and (boarderX < len(game.board))
-            yInBoard = (boarderY >= 0) and (boarderY < len(game.board[0]))
+            xInBoard = (boarderX >= 0) and (boarderX < len(board))
+            yInBoard = (boarderY >= 0) and (boarderY < len(board[0]))
             # check if it's the location of itself
             notItself = not((boarderX == x) and (boarderY == y))
             if xInBoard and yInBoard and notItself: 
@@ -45,7 +45,7 @@ def naiveHeurtistic(game, boardTest, maxPlayer):
     for y in range(0,len(boardTest[0])):
         for x in range(len(boardTest)):
             # count number of same pawns
-            numSame += countNBH(boardTest, x, y, maxPlayer, same = True)
+            numSame += countNBH(game, boardTest, x, y, maxPlayer, same = True)
     #print("numSame = ", numSame)
 
     numOpponents = 0
@@ -53,7 +53,7 @@ def naiveHeurtistic(game, boardTest, maxPlayer):
     for y in range(0,len(boardTest[0])):
         for x in range(len(boardTest)):
             # count number of opponent players
-            numOpponents += countNBH(boardTest, x, y, maxPlayer, same = False)
+            numOpponents += countNBH(game, boardTest, x, y, maxPlayer, same = False)
     #print("numOpponents = ", numOpponents)
 
     # check if there is a win 

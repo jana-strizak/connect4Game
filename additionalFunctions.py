@@ -36,3 +36,16 @@ def findMaxSteps(ngb):
             maxStep = 0
         # max num of steps the piece can travel
         return maxStep
+
+def findPlayerPawns(board, playerPawn):
+        '''
+        Returns location on board of player's pawns
+        '''
+        players = []
+
+        # loop through entire 
+        for y in range(0,len(board[0])):
+            for x in range(len(board)):
+                if board[x][y] == playerPawn:
+                    players.append((x,y))
+        return players

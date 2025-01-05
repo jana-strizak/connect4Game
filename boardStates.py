@@ -74,4 +74,5 @@ def boardStateTest(board):
     board[0][2] = 'X'
     board[0][4] = 'X'
     board[2][5] = 'X'
+    
     return board

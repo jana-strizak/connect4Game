@@ -5,8 +5,8 @@ import multiprocessing
 
 from boardStates import boardStateTest, boardStateA, boardStateB, boardStateC, boardStateD
 
-from additionalFunctions import check_win, display_board
-from gameStateEvaluation import improvedHeurtistic, naiveHeurtistic
+from additionalFunctions import check_win, display_board, findPlayerPawns, findMaxSteps
+from gameStateEvaluation import improvedHeurtistic, naiveHeurtistic, countNBH
 
 # defining the game play flow
 class Connect4Game:
@@ -96,6 +96,152 @@ class Connect4Game:
         return x, y, direction, steps
     """
     ------------------------------------------------------------------------------------------------------------------------------------------
+    """
+    def findChildern(self, board, maxPlayer):
+        '''
+        finds all possible board states spawning from the input variable board
+        '''
+        childern = []
+
+        # determine pawn symbol
+        playerPawn = self.player2_Character if maxPlayer else self.player1_Character
+        
+
+        # find all possibble pawns that can be played
+        playerPawns = findPlayerPawns(board, playerPawn)
+
+        directions = ["N", "S", "E", "W"]
+
+        # for each of player's pawn
+        for pawn in playerPawns:
+            # coordinates of pawn
+            xPawn, yPawn = pawn
+
+            # count other player's neighbours of pawn at (x,y) to determine max steps 
+            ngb = countNBH(self, board, xPawn, yPawn, maxPlayer)
+
+            # What is the largest amount of steps that pawn can take?
+            maxSteps = findMaxSteps(ngb)
+            
+            # don't check if pawn can't move
+            if not(maxSteps == 0):
+                # make each possible move
+                for step in range(1, maxSteps+1): # for each step 
+                    for direction in directions: # for each direction (N,S,E,W)
+                        boardChild = self.action(board, xPawn, yPawn, direction, step, maxPlayer, show=0)
+                        if boardChild:
+                            childern.append((boardChild, xPawn, yPawn, direction, step))
+        
+        if childern == []: # no moves avaible here 
+            print('here')
+
+        return childern
+    
+    def minimax(self, board, depth, maxPlayer, count = 0):
+        # check if this is a winning board
+        result = self.check_win(board)
+        win = (result == "X") or (result == "O")
+        # return heuristic if it's a win or an end depth
+        if depth == 0 or win:
+            v = self.heuristicFunc(board, maxPlayer)
+            count += 1
+            return v, None, count
+        
+        if maxPlayer:
+            maxEval = - math.inf
+            #minDepth = -1
+            minSteps = -1
+            childern =  self.findChildern(board, maxPlayer)
+            for child in childern:
+                childBoard = child[0]
+                eval, _, ccount = self.minimax(childBoard, depth-1, False) # since this turn was maxPlayer, next is not
+                count += ccount + 1
+                if (eval > maxEval) or ((eval == maxEval) and (child[4] > minSteps)):
+                    #minDepth = depth-1
+                    maxEval = eval
+                    minSteps = child[4]
+                    bestMove = (child[1], child[2], child[3], child[4]) # x, y, dir, steps
+            return maxEval, bestMove, count
+        else:
+            minEval = math.inf
+            #minDepth = -1
+            minSteps = -1
+            childern =  self.findChildern(board, maxPlayer)
+            for child in childern:
+                childBoard = child[0]
+                eval, _, ccount = self.minimax(childBoard, depth-1, True) # since this turn was maxPlayer, next is not
+                count += ccount + 1
+                # update best move with value is better (smaller) or when the value is the same but step = 0 (get there faster)
+                #if (eval < minEval) or ((eval == minEval) and (child[4] > minSteps)) :
+                if (eval < minEval) or ((abs(eval - minEval) < 0.1) and (count < minSteps)):
+                    minEval = eval
+                    minSteps = count
+                    bestMove = (child[1], child[2], child[3], child[4])
+            return minEval, bestMove, count
+
+    def alphabetaPruning(self, board, depth, alpha, beta, maxPlayer, maxDepth = -1, count = 0):
+        """
+        The core alpha-beta prunning algorithm
+        """
+        # check if this is a winning board
+        result = check_win(board)
+        win = (result == "X") or (result == "O")
+
+        # return heuristic if it's a win or an end depth
+        if depth == 0 or win:
+            eval = self.heuristicFunc(board, maxPlayer)
+            count +=1
+            return eval, None, count
+        
+        minSteps = -1
+        # find all steps that can be taken after this one
+        childern =  self.findChildern(board, maxPlayer)
+        
+        # There are no moves avaible 
+        if childern == []:
+            eval = (-1)**maxPlayer * 15 # return bad score for this board state
+            return eval, None, count
+            
+        # determine which moves to do first by ordering the board states
+        ordered = self.player2Ordered if maxPlayer else self.player1Ordered
+        if ordered and (depth > maxDepth):
+            maxDepth = depth
+            allChildBoards = [c[0] for c in childern]
+            boardEvals = [abs(self.heuristicFunc(b, maxPlayer)) for b in allChildBoards]
+            checkOrder = sorted(enumerate(boardEvals), key = lambda x:x[1], reverse = True)
+            index = [c[0] for c in checkOrder]
+            childern_ordered = [childern[i] for i in index]
+            childern = childern_ordered
+
+        # keeping track of best score so far
+        bestEval = - math.inf if maxPlayer else math.inf
+        
+        # evaluating all childern of the board state
+        for child in childern:
+                childBoard = child[0]
+                eval, _, ccount = self.alphabetaPruning(childBoard, depth-1, alpha, beta, False, maxDepth = maxDepth, count = 0) # since this turn was maxPlayer, next is not
+                count += 1 + ccount
+                if maxPlayer:
+                    update_eval = eval > bestEval
+                else:
+                    update_eval = eval < bestEval
+
+                if update_eval:
+                    #minDepth = depth-1
+                    bestEval = eval
+                    bestMove = (child[1], child[2], child[3], child[4]) # x,y,dir, steps
+                
+                if maxPlayer:
+                    alpha = max(alpha, eval)
+                else:
+                     beta = min(beta, eval)
+
+                if beta <= alpha:
+                    break
+        return bestEval, bestMove, count
+    
+    """
+    ______________________________________________________________________________________________________________________
     """
     # make a turn of the game, depending on which player is playing 
     def takeTurn(self, maxPlayer):
