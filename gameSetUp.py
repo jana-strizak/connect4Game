@@ -1,6 +1,6 @@
 
 import math 
-import copy
+from copy import deepcopy
 import multiprocessing
 
 from boardStates import boardStateTest, boardStateA, boardStateB, boardStateC, boardStateD
@@ -10,23 +10,27 @@ from gameStateEvaluation import improvedHeurtistic, naiveHeurtistic, countNBH
 
 # defining the game play flow
 class Connect4Game:
-    def __init__(self, player1Type, depth, boardName = boardStateA, player2Type = 0, heuristicFunc = 0, player1Ordered = False, player2Ordered = False):
+    def __init__(self, player1Type, depth, boardName = boardStateA, player2Type = 0, heuristicFunc = 0, player1Ordered = False, player2Ordered = False, player1Char = "O", player2Char = "X"):
+        self.player1Character = player1Char # this will be min player
+        self.player2Character = player2Char # this will be max player
 
-        # avaible decision making functions
+        # avaible decision making functions, is it a manual play where the human is prompted or an autonomous play where the
+        # agent decides how to play. Should it include prunning into the algorithm
         agent_dict = {
-            "human": self.human_play,
-            "a-bpruning": self.alphabetaPruning_play,
-            "minimax": self.minimax_play,
+            "human": (self.human_play, None), 
+            "a-bpruning": (self.autonomous_play, True),
+            "minimax": (self.autonomous_play, False),
         }
         
         # choose how each player in 2 player game will play
         # one must always be the autonomous agent
-        self.player1Type = agent_dict.get(player1Type)
+        self.player1Type, self.player1Prune = agent_dict.get(player1Type)
+     
         # should state search be ordered by best to worst states 
         self.player1Ordered = player1Ordered
 
         # other could be autonomous agent or user
-        self.player2Type = agent_dict.get(player2Type) 
+        self.player2Type, self.player2Prune = agent_dict.get(player2Type) 
         self.player2Ordered = player2Ordered
 
         # choose the Heuristic function which determines desirable board states
@@ -70,29 +74,21 @@ class Connect4Game:
         x, y, direction, steps = int(inputString[0])-1, int(inputString[1])-1, inputString[2], int(inputString[3])
         return x, y, direction, steps
     
-    def minimax_play(self, maxPlayer, ordered = 0):
+    def autonomous_play(self, maxPlayer, ordered = 0):
         """
         MiniMax algorithm is used the dermine next best move for the player. Depending on which player's turn it 
         is (based on the bool value of maxPlayer), the score of the board state will either be minimized or maximized
+        
+        if prune was set to TRUE, The alpha-beta prunning algorithm is used to simplify the search states of the game and find an optimal solution more efficiently
         """
+        ordered = self.player2Ordered if maxPlayer else self.player1Ordered
+        prune = self.player2Prune if maxPlayer else self.player1Prune
+
         # call minimax to find best move 
-        eval, move, nodes = self.minimax(self.board, self.depth, maxPlayer)
+        eval, move, nodes = self.minimax(self.board, self.depth, maxPlayer, ordered=ordered, prune=prune)
+
         self.numNodes.append(nodes)
-        x, y, direction, steps = move[0], move[1], move[2], move[3] 
-        return x, y, direction, steps
-
-    def alphabetaPruning_play(self, maxPlayer):
-        """
-        The alpha-beta prunning algorithm is used to determine the next move, which is similar but faster than the minimax alg
-        """
-        # call minimax to find best move 
-        alpha = -math.inf
-        beta = math.inf
-
-        v, move, nodes = self.alphabetaPruning(self.board, self.depth, alpha, beta, maxPlayer)
-        self.numNodes.append(nodes)
-
-        x, y, direction, steps = move[0], move[1], move[2], move[3] 
+        x, y, direction, steps = move
         return x, y, direction, steps
     """
     ------------------------------------------------------------------------------------------------------------------------------------------
@@ -104,7 +100,7 @@ class Connect4Game:
         childern = []
 
         # determine pawn symbol
-        playerPawn = self.player2_Character if maxPlayer else self.player1_Character
+        playerPawn = self.player2Character if maxPlayer else self.player1Character
         
 
         # find all possibble pawns that can be played
@@ -137,58 +133,58 @@ class Connect4Game:
 
         return childern
     
-    def minimax(self, board, depth, maxPlayer, maxDepth = -1, count = 0, prune = False, alpha = -math.inf, beta = math.inf):
+    def minimax(self, board, depth, maxPlayer, ordered = False, count = 0, prune = False, alpha = -math.inf, beta = math.inf):
         '''
         The minimax algorithm to determine move with best board state
         alpha-beta prunning is possible with the prune function
         '''
+        maxSteps = -1
+
         # check if this is a winning board
         result = check_win(board)
         win = (result == "X") or (result == "O")
         # return heuristic if it's a win or an end depth
         if depth == 0 or win:
-            v = self.heuristicFunc(board, maxPlayer)
+            v = self.heuristicFunc(self, board, maxPlayer)
             count += 1
             return v, None, count
         
+        bestEval = - math.inf if maxPlayer else math.inf
+        
+        # get all possible board moves from this state
+        childern =  self.findChildern(board, maxPlayer)
+        
         # determine which moves to do first by ordering the board states
-        ordered = self.player2Ordered if maxPlayer else self.player1Ordered
-        if ordered and depth > maxDepth: # will only be updated at the first depth
-            maxDepth = depth
+        if ordered: # will only be updated at the first depth only
             allChildBoards = [c[0] for c in childern]
-            boardEvals = [abs(self.heuristicFunc(b, maxPlayer)) for b in allChildBoards]
+            boardEvals = [abs(self.heuristicFunc(self, b, maxPlayer)) for b in allChildBoards]
             checkOrder = sorted(enumerate(boardEvals), key = lambda x:x[1], reverse = True)
             index = [c[0] for c in checkOrder]
             childern_ordered = [childern[i] for i in index]
             childern = childern_ordered
 
-        bestEval = - math.inf if maxPlayer else math.inf
-        minSteps = -1
-        
-        # get all possible board moves from this state
-        childern =  self.findChildern(board, maxPlayer)
-
         for child in childern:
             childBoard = child[0]
-            eval, _, ccount, minSteps = self.minimax(childBoard, depth-1, not(maxPlayer), alpha=alpha, beta=beta) # since this turn was maxPlayer, next is not
+            eval, _, ccount = self.minimax(childBoard, depth-1, not(maxPlayer), ordered=False, prune = prune, alpha=alpha, beta=beta) # since this turn was maxPlayer, next is not
             count += ccount + 1
 
             eval_update = eval > bestEval if maxPlayer else eval < bestEval
-            if eval_update or ((eval == bestEval) and (child[4] > minSteps)):
+            #if eval_update or ((eval == bestEval) and (child[4] > maxSteps)):
+            if eval_update:
                 bestEval = eval
-                minSteps = child[4]
+                maxSteps = child[4]
                 bestMove = (child[1], child[2], child[3], child[4]) # x, y, dir, steps
 
             if prune: # don't bother checking all nodes if better results exist
                 if maxPlayer:
-                        alpha = max(alpha, eval)
-                    else:
-                        beta = min(beta, eval)
+                    alpha = max(alpha, eval)
+                else:
+                    beta = min(beta, eval)
 
-                    if beta <= alpha:
-                        break
+                if beta <= alpha:
+                    break
             
-        return bestEval, bestMove, count, minSteps
+        return bestEval, bestMove, count
 
     """
     ______________________________________________________________________________________________________________________
@@ -201,14 +197,15 @@ class Connect4Game:
 
         # determine next move ---------------------------------------------
         # the decision making algorithm is different based on player
-        playType = self.player2TypeType if maxPlayer else self.player1TypeType
+        playType = self.player2Type if maxPlayer else self.player1Type
 
         x, y, direction, steps = playType(maxPlayer, playType)
         #------------------------------------------------------------------
 
         # make move -------------------------------------------------------
         # calc new board
-        self.action(x, y, direction, steps, False)
+        boardNew = self.action(self.board, x, y, direction, steps, maxPlayer)
+        self.board = boardNew
         #------------------------------------------------------------------
 
         # return print statment showing what move took place
@@ -216,21 +213,22 @@ class Connect4Game:
 
         return msg
     
-    def action(self, x, y, direction, steps, maxPlayer, show=1):
+    def action(self, board, x, y, direction, steps, maxPlayer, show=1):
+        boardNew = deepcopy(board)
         if show:
             print(str(x+1)+str(y+1)+direction+str(steps))
 
         # check correct pawn is chosen 
-        if maxPlayer and (self.board[x][y] == self.agentCharacter or self.board[x][y] == " "):
-            print('max player must choose '+ self.playerCharacter +' to move')
+        if maxPlayer and not(boardNew[x][y] == self.player2Character): # wrong pawn
+            print('max player must choose '+ self.player2Character +' to move')
             return 0
-        elif not(maxPlayer) and (self.board[x][y] == self.playerCharacter or self.board[x][y] == " "):
-            print('min player must choose' + self.agentCharacter + 'to move')
+        elif not(maxPlayer) and not(boardNew[x][y] == self.player1Character):
+            print('min player must choose ' + self.player1Character + 'to move')
             return 0
 
         # count neighbours or pawn at (x,y) to determine max steps 
-        ngb = self.countNBH(self.board, x, y, maxPlayer)
-        maxSteps = self.findMaxSteps(ngb)
+        ngb = countNBH(self, boardNew, x, y, maxPlayer)
+        maxSteps = findMaxSteps(ngb)
 
         # checking steps don't exeed limit
         if steps > maxSteps:
@@ -252,29 +250,25 @@ class Connect4Game:
                 return 0
 
             # check new value is on board
-            if (xNew > len(self.board)-1) or (xNew < 0) or (yNew > len(self.board[0])-1) or (yNew < 0):
+            if (xNew > len(boardNew)-1) or (xNew < 0) or (yNew > len(boardNew[0])-1) or (yNew < 0):
                 if show:
                     print("You moved too far off the board!")
                 return 0 
             # check new value isn't overlapping another pawn 
-            if (self.board[xNew][yNew] == "X") or (self.board[xNew][yNew] == "O"):
+            if (boardNew[xNew][yNew] == "X") or (boardNew[xNew][yNew] == "O"):
                 if show:
                     print("There is another pawn in the way!")
                 return 0 
         
-        self.board[xNew][yNew] = self.board[x][y]
-        self.board[x][y] = ' '
+        boardNew[xNew][yNew] = boardNew[x][y]
+        boardNew[x][y] = ' '
 
-        return 
+        return boardNew
     
     def play(self, stopItter = math.inf, show = 1):
         """
         game play flow
         """
-        # assign character
-        self.player1_Character = "O" # this will be the min player
-        self.player2_Character = "X" # this will be the max player
-
         # keep track of count
         turnCount = 0
 
@@ -291,7 +285,7 @@ class Connect4Game:
             maxPlayer = turnCount%2
 
             if show:
-                currentPawn = self.player2_Character if maxPlayer else self.player1_Character
+                currentPawn = self.player2Character if maxPlayer else self.player1Character
                 print("Now " + currentPawn + " agent will move...")
 
             # make a move
@@ -319,6 +313,6 @@ if __name__ == "__main__":
     nodesVisited = game.play()
     print("nodesVisited = ", nodesVisited)
     '''
-    depth = 3
-    game = Connect4Game("a-bpruning", depth, boardName = boardStateA, player2Type = "a-bpruning", heuristicFunc='improved', player1Ordered = False, player2Ordered = False)
+    depth = 4
+    game = Connect4Game("a-bpruning", depth, boardName = boardStateA, player2Type = "a-bpruning", heuristicFunc='improved', player1Ordered = True, player2Ordered = True)
     nodesVisited = game.play()

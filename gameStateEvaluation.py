@@ -12,11 +12,11 @@ def countNBH(game, board, x, y, maxPlayer, same = False):
     """
     # determine pawn symbol
     if maxPlayer:
-        player = game.player2_Character
-        opponent = game.player1_Character
+        player = game.player2Character
+        opponent = game.player1Character
     else:
-        player = game.player1_Character
-        opponent = game.player2_Character
+        player = game.player1Character
+        opponent = game.player2Character
     
     # swaps pawn that's being counted 
     if same:
@@ -36,7 +36,7 @@ def countNBH(game, board, x, y, maxPlayer, same = False):
                 # if boarder pawn is an opponent pawn
                 if (board[x][y] == player) and (board[boarderX][boarderY] == opponent):
                     ngb += 1
-        return ngb
+    return ngb
 
 # naive method of quantifying state of the board
 def naiveHeurtistic(game, boardTest, maxPlayer):
@@ -61,10 +61,10 @@ def naiveHeurtistic(game, boardTest, maxPlayer):
     #if result:
     #    print("here")
     # wins case
-    if (winningPawn == game.player2_Character and maxPlayer) or (winningPawn == game.player1_Character and not(maxPlayer)):
+    if (winningPawn == game.player2Character and maxPlayer) or (winningPawn == game.player1Character and not(maxPlayer)):
         valueNode = 100
     #  player looses case
-    elif (winningPawn == game.player1_Character and maxPlayer) or (winningPawn == game.player2_Character and not(maxPlayer)):
+    elif (winningPawn == game.player1Character and maxPlayer) or (winningPawn == game.player2Character and not(maxPlayer)):
         valueNode = -100
     else:
         valueNode = 2*numSame - numOpponents
@@ -146,18 +146,18 @@ def improvedHeurtistic(game, boardTest, maxPlayer):
     for y in range(0,len(boardTest[0])):
         for x in range(len(boardTest)):
             # count number of same pawns
-            numSame += countNBH(boardTest, x, y, maxPlayer, same = True)
+            numSame += countNBH(game, boardTest, x, y, maxPlayer, same = True)
 
     numOpponents = 0
     # loop through all points to find opponents in NBH
     for y in range(0,len(boardTest[0])):
         for x in range(len(boardTest)):
             # count number of opponent players
-            numOpponents += countNBH(boardTest, x, y, maxPlayer, same = False)
+            numOpponents += countNBH(game, boardTest, x, y, maxPlayer, same = False)
 
     # find if there is anywhere on the board where 3 pawns are already connected (need just one more pawn to finish it)
-    playerPawn = game.player2_character if maxPlayer else game.player1_character
-    opponentPawn = game.player1_character if maxPlayer else game.player2_character
+    playerPawn = game.player2Character if maxPlayer else game.player1Character
+    opponentPawn = game.player1Character if maxPlayer else game.player2Character
 
     LScore_Player = findL(playerPawn, boardTest) # output is binary (Yes/No)
     LScore_Opponent = findL(opponentPawn, boardTest)
@@ -169,10 +169,10 @@ def improvedHeurtistic(game, boardTest, maxPlayer):
    # check if there is a win 
     winningPawn = check_win(boardTest)
     # wins case
-    if (winningPawn == game.player2_Character and maxPlayer) or (winningPawn == game.player1_Character and not(maxPlayer)):
+    if (winningPawn == game.player2Character and maxPlayer) or (winningPawn == game.player1Character and not(maxPlayer)):
         valueNode = 100
     #  player looses case
-    elif (winningPawn == game.player1_Character and maxPlayer) or (winningPawn == game.player2_Character and not(maxPlayer)):
+    elif (winningPawn == game.player1Character and maxPlayer) or (winningPawn == game.player2Character and not(maxPlayer)):
         valueNode = -100
     else:
         valueNode = 2*numSame - numOpponents + 5*LScore_Player - 3*LScore_Opponent + PossessionScore_player - 0.5*PossessionScore_Opponent
